@@ -1,16 +1,35 @@
 import socket
-from time import sleep
 
-sock = socket.socket()
-sock.setblocking(1)
-sock.connect(('10.38.165.12', 9090))
+SERVER_IP = "localhost"
+PORT_NUMBER = 9090
 
-#msg = input()
-msg = "Hi!"
-sock.send(msg.encode())
+class Client:
+    def __init__(self):
+        sock = socket.socket()
+        sock.setblocking(1)
+        sock.connect((SERVER_IP, PORT_NUMBER))
+        self.sock = sock
+        #Работа с данными, поступающими от пользователя
+        self.user_processing()
+        #Закрываем сокет
+        self.sock.close()
+        
+    def user_processing(self):
 
-data = sock.recv(1024)
+        while True:
+            msg = input("==> ")
+            if msg == "exit": 
+                break
+            elif msg == "":
+                msg = "-"
+        
+            #Отправляем сообщение клиенту
+            self.sock.send(msg.encode())
+            #Получаем ответ
+            data = self.sock.recv(1024)
 
-sock.close()
+            print(f"Ответ сервера: {data.decode()}")
 
-print(data.decode())
+
+if __name__ == "__main__":
+	client = Client()

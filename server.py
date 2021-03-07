@@ -1,20 +1,37 @@
 import socket
+PORT_NUMBER = 9090
 
-sock = socket.socket()
-sock.bind(('', 9090))
-sock.listen(0)
-conn, addr = sock.accept()
-print(addr)
+class Server:
+	def __init__(self) -> None:
+		sock = socket.socket()
+		sock.bind(('', PORT_NUMBER))
+		sock.listen(1)
+		self.sock = sock
+		print(f"Сервер стартанул, слушаем порт {PORT_NUMBER}")
+		while True:
+			conn, addr = self.sock.accept()
+			self.new_connection(conn, addr)
+	
+	def new_connection(self, conn, addr):
+		"""
+		Обработчик нового соединения
+		"""
+		print(f"Новое соединение {addr}")
+		msg = ""
 
-msg = ''
+		while True:
+			#Получаем данные
+			data = conn.recv(1024)
+			
+			#Если нет данных, то больше ничего не ждем от клиента
+			if not data:
+				break
 
-while True:
-	data = conn.recv(1024)
-	if not data:
-		break
-	msg += data.decode()
-	conn.send(data)
+			msg += data.decode()
+			conn.send(data)
 
-print(msg)
+			data_str = str(data, "utf-8")
+			print(f"Собщение клиента: \"{data_str}\"")
 
-conn.close()
+if __name__ == "__main__":
+	server = Server()
