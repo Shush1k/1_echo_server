@@ -1,7 +1,9 @@
 import socket
+import logging
 from validation import port_validation
 
 PORT_DEFAULT = 9090
+logging.basicConfig(filename='server.log', format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s", level=logging.INFO)
 
 class Server:
 	def __init__(self):
@@ -9,7 +11,7 @@ class Server:
 		sock.bind(('', PORT_DEFAULT))
 		sock.listen(1)
 		self.sock = sock
-		print(f"Сервер стартанул, слушаем порт {PORT_DEFAULT}")
+		logging.info(f"Сервер стартанул, слушаем порт {PORT_DEFAULT}")
 		while True:
 			conn, addr = self.sock.accept()
 			self.new_connection(conn, addr)
@@ -18,7 +20,7 @@ class Server:
 		"""
 		Обработчик нового соединения
 		"""
-		print(f"Новое соединение {addr}")
+		logging.info(f"Новое соединение {addr}")
 		msg = ""
 
 		while True:
@@ -33,7 +35,7 @@ class Server:
 			conn.send(data)
 
 			data_str = str(data, "utf-8")
-			print(f"Собщение клиента: \"{data_str}\"")
+			logging.info(f"Собщение клиента: \"{data_str}\"")
 
 if __name__ == "__main__":
 	server = Server()
