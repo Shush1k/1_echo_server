@@ -1,13 +1,15 @@
 import socket
-PORT_NUMBER = 9090
+from validation import port_validation
+
+PORT_DEFAULT = 9090
 
 class Server:
-	def __init__(self) -> None:
+	def __init__(self):
 		sock = socket.socket()
-		sock.bind(('', PORT_NUMBER))
+		sock.bind(('', PORT_DEFAULT))
 		sock.listen(1)
 		self.sock = sock
-		print(f"Сервер стартанул, слушаем порт {PORT_NUMBER}")
+		print(f"Сервер стартанул, слушаем порт {PORT_DEFAULT}")
 		while True:
 			conn, addr = self.sock.accept()
 			self.new_connection(conn, addr)
