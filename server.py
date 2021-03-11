@@ -1,55 +1,129 @@
 import socket
+from datetime import datetime
+import hashlib
+import json
+import pickle
+from threading import Thread
+import sys
 import logging
-from validation import port_validation
+from validation import is_free_port, port_validation
+
 
 PORT_DEFAULT = 9090
-logging.basicConfig(filename='server.log',
-                    format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s", level=logging.INFO)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s",
+                    handlers=[logging.FileHandler("log/server.log"), logging.StreamHandler()], level=logging.INFO)
 
 
-class Server:
-    def __init__(self, server_port):
+class Server():
+    """
+    Сервер
+    """
+
+    def __init__(self, port, clients=[], status=None):
+        # users - файл с данными
+        self.users = "users.json"
+        self.clients = clients
+        self.server_port = port
+
+        self.status = status
+        self.server_boot()
+
+    def server_boot(self):
+        """
+        Запуск сервера
+        """
         sock = socket.socket()
-        sock.bind(('', server_port))
-        print(f"Слушаем порт: {server_port}")
-        sock.listen(1)
+        sock.bind(('', self.server_port))
+        sock.listen(5)
         self.sock = sock
-        logging.info(f"Сервер стартанул, слушаем порт {server_port}")
+        logging.info(f"Сервер стартанул, слушаем порт {self.server_port}")
         while True:
             conn, addr = self.sock.accept()
-            self.new_connection(conn, addr)
+            Thread(target=self.listenToClient, args=(conn, addr)).start()
+            self.clients.append(conn)
 
-    def new_connection(self, conn, addr):
-        """
-        Обработчик нового соединения
-        """
-        logging.info(f"Новое соединение {addr}")
-        msg = ""
+    def broadcast(self, msg, conn):
+        for sock in self.clients:
+            if sock != conn:
+                data = pickle.dumps(["message", msg])
+                sock.send(data)
 
+    def checkPassword(self, passwd, userkey):
+        """
+        Проверка пароля
+        """
+        key = hashlib.md5(passwd.encode() + b'salt').hexdigest()
+        return key == userkey
+
+    def generateHash(self, passwd):
+        """
+        Генерация пароля
+        """
+        key = hashlib.md5(passwd.encode() + b'salt').hexdigest()
+        return key
+
+    def listenToClient(self, conn, address):
+        """
+        Слушаем клиента
+        """
+        self.checkUser(address, conn)
+        logging.info(f"Пользователь прошел авторизацию")
         while True:
-            # Получаем данные
             data = conn.recv(1024)
-
-            # Если нет данных, то больше ничего не ждем от клиента
-            if not data:
+            if data:
+                status, data = pickle.loads(data)
+                if status == "message":
+                    self.broadcast(data, conn)
+            else:
+                # Закрываем соединение
+                conn.close()
+                self.clients.remove(conn)
                 break
 
-            msg += data.decode()
-            conn.send(data)
+    def checkUser(self, addr, conn):
+        """
+        Проверка данных клиента
+        """
+        try:
+            open(self.users).close()
+        except FileNotFoundError:
+            open(self.users, 'a').close()
+        with open(self.users, "r") as f:
+            try:
+                # Авторизация, считывание информации из файла
+                users = json.load(f)
+                name = users[str(addr[0])]['name']
+                conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
+                passwd = pickle.loads(conn.recv(1024))[1]
+                conn.send(pickle.dumps(["success", f"Здравствуйте, {name}"])) if self.checkPassword(
+                    passwd, users[str(addr[0])]['password']) else self.checkUser(addr, conn)
 
-            data_str = str(data, "utf-8")
-            logging.info(f"Собщение клиента: \"{data_str}\"")
+            except:
+                # Регистрация и запись данных в файл
+                conn.send(pickle.dumps(
+                    ["auth", f"Привет, новичек."]))
+                name = pickle.loads(conn.recv(1024))[1]
+                conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
+                passwd = self.generateHash(pickle.loads(conn.recv(1024))[1])
+                conn.send(pickle.dumps(["success", f"Приветствую, {name}"]))
+                with open(self.users, "w", encoding="utf-8") as f:
+                    json.dump({addr[0]: {'name': name, 'password': passwd}}, f)
+
+        logging.info(f"Пользователь {name}")
 
 
 def main():
-    server_port = PORT_DEFAULT
     # Подбор порта
-    while True:
-        try:
-            Server(server_port)
-            break
-        except:
-            server_port += 1
+    server_port = PORT_DEFAULT
+    if not port_validation(PORT_DEFAULT, True):
+        if not is_free_port(PORT_DEFAULT):
+            logging.info(f"Порт по умолчанию {PORT_DEFAULT} занят")
+            free_port = False
+            # перебор порта
+            while not free_port:
+                server_port += 1
+                free_port = is_free_port(server_port)
+    Server(server_port)
 
 
 if __name__ == "__main__":

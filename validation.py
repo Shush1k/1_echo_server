@@ -1,18 +1,31 @@
 import socket
 
 
-def port_validation(port):
-    """Проверка порта на корректность"""
+def port_validation(port, isfree=False):
+    """Проверка порта на корректность и свободность"""
     try:
-        if port == "":
-            return False
-        else:
-            if 1024 <= int(port) <= 65535:
-                pass
-            else:
-                return False
+        if 1 <= int(port) <= 65535:
+            if isfree:
+                return is_free_port(port)
             return True
+        print(f"Некорректное значение для порта")
+        return False
+
     except ValueError:
+        print(f"Значение {port} не является числом!")
+        return False
+
+
+def is_free_port(port):
+    """
+    Проверка свободный ли порт
+    """
+    try:
+        sock = socket.socket()
+        sock.bind(("", port))
+        sock.close()
+        return True
+    except OSError:
         return False
 
 
