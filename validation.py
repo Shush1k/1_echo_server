@@ -12,7 +12,6 @@ def port_validation(port, isfree=False):
         return False
 
     except ValueError:
-        print(f"Значение {port} не является числом!")
         return False
 
 

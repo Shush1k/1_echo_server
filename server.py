@@ -20,6 +20,12 @@ class Server():
     """
 
     def __init__(self, port, clients=[], status=None):
+        """
+        Args:
+            port (int): порт сервера
+            clients (list): список подключенных клиентов. Defaults to [].
+            status (str): текущее состояние программы. Defaults to None.
+        """
         # users - файл с данными
         self.users = "users.json"
         self.clients = clients
@@ -40,17 +46,32 @@ class Server():
         while True:
             conn, addr = self.sock.accept()
             Thread(target=self.listenToClient, args=(conn, addr)).start()
+            logging.info(f"Подключение клиента {addr}")
             self.clients.append(conn)
 
-    def broadcast(self, msg, conn):
+    def broadcast(self, msg, conn, address):
+        """
+        Несколько соединений
+
+        Args:
+            msg (str): сообщение
+            conn: соединение
+            address: адрес клиента
+        """
         for sock in self.clients:
             if sock != conn:
                 data = pickle.dumps(["message", msg])
                 sock.send(data)
+                logging.info(f"Отправка данных клиенту {address}: {msg}")
 
     def checkPassword(self, passwd, userkey):
         """
-        Проверка пароля
+        Args:
+            passwd (str): пароль введенный пользователем
+            userkey (str): хранимый пароль пользователя
+
+        Returns:
+            str: хэш пароль
         """
         key = hashlib.md5(passwd.encode() + b'salt').hexdigest()
         return key == userkey
@@ -72,12 +93,15 @@ class Server():
             data = conn.recv(1024)
             if data:
                 status, data = pickle.loads(data)
+                logging.info(f"Сообщение клиента {address}: {data}")
                 if status == "message":
-                    self.broadcast(data, conn)
+                    self.broadcast(data, conn, address)
+                    
             else:
                 # Закрываем соединение
                 conn.close()
                 self.clients.remove(conn)
+                logging.info(f"Отключение клиента {address}")
                 break
 
     def checkUser(self, addr, conn):
@@ -109,8 +133,6 @@ class Server():
                 with open(self.users, "w", encoding="utf-8") as f:
                     json.dump({addr[0]: {'name': name, 'password': passwd}}, f)
 
-        logging.info(f"Пользователь {name}")
-
 
 def main():
     # Подбор порта
@@ -123,8 +145,10 @@ def main():
             while not free_port:
                 server_port += 1
                 free_port = is_free_port(server_port)
-    Server(server_port)
-
+    try:
+        Server(server_port)
+    except KeyboardInterrupt:
+        logging.info(f"Остановка сервера")
 
 if __name__ == "__main__":
     main()

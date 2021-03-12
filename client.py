@@ -18,11 +18,12 @@ class Client:
     Клиент
     """
 
-    def __init__(self, server_ip, port, status=None):
+    def __init__(self, server_ip, port, status = None):
         """
-        @param server_ip - localhost
-        @param port - порт сервера
-        @param status - текущее состояние программы
+        Args:
+            server_ip (str): localhost/ip-адресс сервера
+            port (int): порт сервера
+            status (str): текущее состояние программы. Defaults to None.
         """
         self.server_ip = server_ip
         self.port = port
@@ -39,30 +40,32 @@ class Client:
         sock.connect((self.server_ip, self.port))
         self.sock = sock
         logging.info(
-            f"Пользователь подключился к серверу ('{self.server_ip}', {self.port})")
+            f"Установлено соединение с сервером ('{self.server_ip}', {self.port})")
 
     def start(self):
         """
         Проверяем какой статус приложения
         """
         Thread(target=self.recv).start()
+        print("Используйте 'exit', чтобы разорвать соединение")
         while self.status != 'finish':
             if self.status:
                 if self.status == "auth":
                     self.auth()
+                    logging.info(f"Пользователь '{self.username}' зарегистрировался")
                 elif self.status == "passwd":
                     self.sendPasswd()
-                    logging.info("Пользователь авторизовался")
                 elif self.status == "success":
                     self.success()
                 else:
-                    msg = input("==> ")
+                    msg = input(f"{self.username}> ")
                     if msg == "exit":
                         self.status = "finish"
-                        logging.info("Пользователь отключился")
+                        logging.info(f"Разрыв соединения '{self.username}' с сервером")
                         break
                     sendM = pickle.dumps(["message", msg])
                     self.sock.send(sendM)
+                    logging.info(f"Отправка данных от '{self.username}' на сервер: {msg}")
 
         self.sock.close()
 
@@ -80,8 +83,8 @@ class Client:
         Отправка имени на сервер
         """
         print("Введите имя:")
-        name = input()
-        self.sock.send(pickle.dumps(["auth", name]))
+        self.username = input()
+        self.sock.send(pickle.dumps(["auth", self.username]))
         # если убрать sleep ничего работать не будет!!!
         sleep(1.5)
 
@@ -91,6 +94,8 @@ class Client:
         """
         print(self.data)
         self.status = "ready"
+        self.username = self.data.split(" ")[1]
+        logging.info(f"Пользователь '{self.username}' прошел авторизацию")
 
     def recv(self):
         """
@@ -105,7 +110,9 @@ class Client:
                 status = pickle.loads(self.data)[0]
                 self.status = status
                 if self.status == "message":
-                    print(pickle.loads(self.data)[1])
+                    print(f"\n{self.username} -->", pickle.loads(self.data)[1])
+                    # можно проверить с помощью двух присоединений к серверу
+                    logging.info(f"'{self.username}' принял данные от сервера: {pickle.loads(self.data)[1]}")
                 else:
                     self.data = pickle.loads(self.data)[1]
             except OSError:
@@ -116,12 +123,12 @@ def main():
     """
     Ввод порта и ip сервера, валидация данных
     """
-    user_port = input("Введите порт:")
+    user_port = input("Введите порт (enter для значения по умолчанию):")
     if not port_validation(user_port):
         user_port = PORT_DEFAULT
         print(f"Установили порт {user_port} по умолчанию")
 
-    user_ip = input("Введите ip сервера:")
+    user_ip = input("Введите ip сервера (enter для значения по умолчанию):")
     if not ip_validation(user_ip):
         user_ip = IP_DEFAULT
         print(f"Установили ip-адресс {user_ip} по умолчанию")
