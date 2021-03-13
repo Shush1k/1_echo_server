@@ -12,7 +12,9 @@ from validation import is_free_port, port_validation
 PORT_DEFAULT = 9090
 logging.basicConfig(format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s",
                     handlers=[logging.FileHandler("log/server.log"), logging.StreamHandler()], level=logging.INFO)
-
+# TODO Server
+# log Подключение клиента добавить имя пользователя и conn_id
+# 
 
 class Server():
     """
@@ -49,20 +51,23 @@ class Server():
             logging.info(f"Подключение клиента {addr}")
             self.clients.append(conn)
 
-    def broadcast(self, msg, conn, address):
+    def broadcast(self, msg, conn, address, username):
         """
-        Несколько соединений
+        Отправка данных клиентам
+        Отправляем сообщение и имя пользователя с номером соединения
 
         Args:
             msg (str): сообщение
             conn: соединение
             address: адрес клиента
         """
+        username += "_"+str(address[1])
         for sock in self.clients:
             if sock != conn:
-                data = pickle.dumps(["message", msg])
+                data = pickle.dumps(["message", msg, username])
                 sock.send(data)
-                logging.info(f"Отправка данных клиенту {address}: {msg}")
+                logging.info(f"Отправка данных клиенту {sock.getsockname()}: {msg}")
+            
 
     def checkPassword(self, passwd, userkey):
         """
@@ -88,14 +93,13 @@ class Server():
         Слушаем клиента
         """
         self.checkUser(address, conn)
-        logging.info(f"Пользователь прошел авторизацию")
         while True:
             data = conn.recv(1024)
             if data:
-                status, data = pickle.loads(data)
-                logging.info(f"Сообщение клиента {address}: {data}")
+                status, data, username = pickle.loads(data)
+                logging.info(f"Прием данных от клиента '{username}_{address[1]}': {data}")
                 if status == "message":
-                    self.broadcast(data, conn, address)
+                    self.broadcast(data, conn, address, username)
                     
             else:
                 # Закрываем соединение

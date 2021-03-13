@@ -12,7 +12,9 @@ PORT_DEFAULT = 9090
 logging.basicConfig(filename='log/client.log',
                     format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s", level=logging.INFO)
 
-
+# TODO Client
+# 
+# 
 class Client:
     """
     Клиент
@@ -29,7 +31,7 @@ class Client:
         self.port = port
         self.status = status
         self.server_connection()
-        self.start()
+        self.polling()
 
     def server_connection(self):
         """
@@ -37,12 +39,16 @@ class Client:
         """
         sock = socket.socket()
         sock.setblocking(1)
-        sock.connect((self.server_ip, self.port))
+        try:
+            sock.connect((self.server_ip, self.port))
+        except ConnectionRefusedError:
+            print(f"Не удалось присоединиться к серверу {self.server_ip, self.port}")
+            sys.exit(0)
         self.sock = sock
         logging.info(
-            f"Установлено соединение с сервером ('{self.server_ip}', {self.port})")
+            f"Установлено соединение {self.sock.getsockname()} с сервером ('{self.server_ip}', {self.port})")
 
-    def start(self):
+    def polling(self):
         """
         Проверяем какой статус приложения
         """
@@ -52,21 +58,22 @@ class Client:
             if self.status:
                 if self.status == "auth":
                     self.auth()
-                    logging.info(f"Пользователь '{self.username}' зарегистрировался")
+                    logging.info(f"Пользователь {self.sock.getsockname()} зарегистрировался")
                 elif self.status == "passwd":
                     self.sendPasswd()
                 elif self.status == "success":
                     self.success()
                 else:
                     msg = input(f"{self.username}> ")
-                    if msg == "exit":
-                        self.status = "finish"
-                        logging.info(f"Разрыв соединения '{self.username}' с сервером")
-                        break
-                    sendM = pickle.dumps(["message", msg])
-                    self.sock.send(sendM)
-                    logging.info(f"Отправка данных от '{self.username}' на сервер: {msg}")
-
+                    if msg != "":
+                        if msg == "exit":
+                            self.status = "finish"
+                            logging.info(f"Разрыв соединения {self.sock.getsockname()} с сервером")
+                            break
+                        # Отправляем сообщение и имя клиента
+                        sendM = pickle.dumps(["message", msg, self.username])
+                        self.sock.send(sendM)
+                        logging.info(f"Отправка данных от {self.sock.getsockname()} на сервер: {msg}")
         self.sock.close()
 
     def sendPasswd(self):
@@ -95,7 +102,7 @@ class Client:
         print(self.data)
         self.status = "ready"
         self.username = self.data.split(" ")[1]
-        logging.info(f"Пользователь '{self.username}' прошел авторизацию")
+        logging.info(f"Клиент {self.sock.getsockname()} прошел авторизацию")
 
     def recv(self):
         """
@@ -110,9 +117,9 @@ class Client:
                 status = pickle.loads(self.data)[0]
                 self.status = status
                 if self.status == "message":
-                    print(f"\n{self.username} -->", pickle.loads(self.data)[1])
+                    print(f"\n{pickle.loads(self.data)[2]} -->", pickle.loads(self.data)[1])
                     # можно проверить с помощью двух присоединений к серверу
-                    logging.info(f"'{self.username}' принял данные от сервера: {pickle.loads(self.data)[1]}")
+                    logging.info(f"Клиент {self.sock.getsockname()} принял данные от сервера: {pickle.loads(self.data)[1]}")
                 else:
                     self.data = pickle.loads(self.data)[1]
             except OSError:
