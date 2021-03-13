@@ -116,6 +116,7 @@ class Server():
             open(self.users).close()
         except FileNotFoundError:
             open(self.users, 'a').close()
+            
         with open(self.users, "r") as f:
             try:
                 # Авторизация, считывание информации из файла
@@ -129,13 +130,16 @@ class Server():
             except:
                 # Регистрация и запись данных в файл
                 conn.send(pickle.dumps(
-                    ["auth", f"Привет, новичек."]))
+                    ["auth", ""]))
                 name = pickle.loads(conn.recv(1024))[1]
                 conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
                 passwd = self.generateHash(pickle.loads(conn.recv(1024))[1])
                 conn.send(pickle.dumps(["success", f"Приветствую, {name}"]))
-                with open(self.users, "w", encoding="utf-8") as f:
-                    json.dump({addr[0]: {'name': name, 'password': passwd}}, f)
+                # TODO users.json если ip-адресов больше двух все ломается
+                # Придумать как обновлять файл json 
+                # Если файл уже существует то добавить запись/перезаписывать его каждый раз?
+                with open(self.users, "a", encoding="utf-8") as f:
+                    json.dump({addr[0]: {'name': name, 'password': passwd}}, f, indent=4)
 
 
 def main():

@@ -1,1 +1,11 @@
-{"127.0.0.1": {"name": "shush1k", "password": "46a453945433ce452b30565cba88adb6"}}
+{"ip-v4":{
+    "127.0.0.1": {
+        "name": "Shush1k",
+        "password": "46a453945433ce452b30565cba88adb6"
+    },
+    "192.168.88.204": {
+        "name": "kkoo",
+        "password": "46a453945433ce452b30565cba88adb6"
+    }
+}
+}
