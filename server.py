@@ -12,9 +12,7 @@ from validation import is_free_port, port_validation
 PORT_DEFAULT = 9090
 logging.basicConfig(format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s",
                     handlers=[logging.FileHandler("log/server.log"), logging.StreamHandler()], level=logging.INFO)
-# TODO Server
-# log Подключение клиента добавить имя пользователя и conn_id
-# 
+
 
 class Server():
     """
@@ -32,9 +30,27 @@ class Server():
         self.users = "users.json"
         self.clients = clients
         self.server_port = port
-
+        self.all_Users = []
         self.status = status
         self.server_boot()
+
+    def readJSON(self):
+        """
+        Читаем файл
+        
+        Returns:
+            list: список пользователей
+        """
+        with open(self.users, 'r') as f:
+            users = json.load(f)
+        return users
+
+    def writeJSON(self):
+        """
+        Запись всех пользователей в файл
+        """
+        with open(self.users, 'w') as f:
+            json.dump(self.all_Users, f, indent=4)
 
     def server_boot(self):
         """
@@ -53,13 +69,14 @@ class Server():
 
     def broadcast(self, msg, conn, address, username):
         """
-        Отправка данных клиентам
+        Отправка данных клиентам\n
         Отправляем сообщение и имя пользователя с номером соединения
 
         Args:
             msg (str): сообщение
-            conn: соединение
-            address: адрес клиента
+            conn (socket): сокет с данными клиента
+            address (tuple): кортеж ip-адреса и номера соединения
+            username (str): имя клиента
         """
         username += "_"+str(address[1])
         for sock in self.clients:
@@ -71,29 +88,45 @@ class Server():
 
     def checkPassword(self, passwd, userkey):
         """
+        Проверяем пароль из файла и введенный пользователем
+
         Args:
             passwd (str): пароль введенный пользователем
             userkey (str): хранимый пароль пользователя
 
         Returns:
-            str: хэш пароль
+            boolean: True/False
         """
         key = hashlib.md5(passwd.encode() + b'salt').hexdigest()
         return key == userkey
 
     def generateHash(self, passwd):
         """
-        Генерация пароля
+        Генерация пароля\n
+        Args:
+            passwd (str): пароль
+
+        Returns:
+            str: хэш пароль
         """
         key = hashlib.md5(passwd.encode() + b'salt').hexdigest()
         return key
 
     def listenToClient(self, conn, address):
         """
-        Слушаем клиента
+        Слушаем клиента, если данные есть отправляем их клиентам.\n
+        Иначе закрываем соединение клиента.
+
+        Args:
+            conn (socket): сокет с данными клиента
+            address (tuple): кортеж ip-адреса и номера соединения
         """
-        self.checkUser(address, conn)
+        self.authorization(address, conn)
         while True:
+            # TODO Проблема команды exit (отключение от сервера)
+            # Когда клиент вводит данную команду, ему отправляется пакет RST
+            # После этого сервер не может считывать данные
+            # Connection reset by peer, а затем Broken pipe error
             data = conn.recv(1024)
             if data:
                 status, data, username = pickle.loads(data)
@@ -108,38 +141,57 @@ class Server():
                 logging.info(f"Отключение клиента {address}")
                 break
 
-    def checkUser(self, addr, conn):
+    def authorization(self, addr, conn):
         """
-        Проверка данных клиента
-        """
-        try:
-            open(self.users).close()
-        except FileNotFoundError:
-            open(self.users, 'a').close()
-            
-        with open(self.users, "r") as f:
-            try:
-                # Авторизация, считывание информации из файла
-                users = json.load(f)
-                name = users[str(addr[0])]['name']
-                conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
-                passwd = pickle.loads(conn.recv(1024))[1]
-                conn.send(pickle.dumps(["success", f"Здравствуйте, {name}"])) if self.checkPassword(
-                    passwd, users[str(addr[0])]['password']) else self.checkUser(addr, conn)
+        Авторизация, считывание информации из файла
 
-            except:
-                # Регистрация и запись данных в файл
-                conn.send(pickle.dumps(
-                    ["auth", ""]))
-                name = pickle.loads(conn.recv(1024))[1]
-                conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
-                passwd = self.generateHash(pickle.loads(conn.recv(1024))[1])
-                conn.send(pickle.dumps(["success", f"Приветствую, {name}"]))
-                # TODO users.json если ip-адресов больше двух все ломается
-                # Придумать как обновлять файл json 
-                # Если файл уже существует то добавить запись/перезаписывать его каждый раз?
-                with open(self.users, "a", encoding="utf-8") as f:
-                    json.dump({addr[0]: {'name': name, 'password': passwd}}, f, indent=4)
+        Args:
+            addr (tuple): кортеж ip-адреса и номера соединения
+            conn (socket): сокет с данными клиента
+        """
+        # Проверка есть ли в файле данные
+        try:
+            self.all_Users = self.readJSON()
+        except json.decoder.JSONDecodeError:
+            self.registration(addr, conn)
+
+        user_flag = False
+        for user in self.all_Users:
+            if addr[0] in user:
+                for k, v in user.items():
+                    if k == addr[0]:
+                        name = v['name']
+                        password = v['password']
+                        conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
+                        passwd = pickle.loads(conn.recv(1024))[1]
+                        conn.send(pickle.dumps(["success", f"Здравствуйте, {name}"])) if self.checkPassword(
+                            passwd, password) else self.authorization(addr, conn)
+                        user_flag = True
+        # Если пользователь не найден в файле
+        if not user_flag:
+            self.registration(addr, conn)
+        
+
+    def registration(self, addr, conn):
+        """
+        Регистрация, запись данных в файл, обновление списка клиентов
+
+        Args:
+            addr (tuple): кортеж ip-адреса и номера соединения
+            conn (socket): сокет с данными клиента
+        """
+        conn.send(pickle.dumps(
+            ["auth", ""]))
+        name = pickle.loads(conn.recv(1024))[1]
+        conn.send(pickle.dumps(["passwd", "Введите свой пароль: "]))
+        passwd = self.generateHash(pickle.loads(conn.recv(1024))[1])
+        conn.send(pickle.dumps(["success", f"Приветствую, {name}"]))
+        self.all_Users.append({addr[0]: {'name': name, 'password': passwd}})
+        # Запись в файл при регистрации пользователя
+        self.writeJSON()
+        self.all_Users = self.readJSON()
+
+
 
 
 def main():

@@ -1,11 +1,14 @@
-{"ip-v4":{
-    "127.0.0.1": {
-        "name": "Shush1k",
-        "password": "46a453945433ce452b30565cba88adb6"
+[
+    {
+        "127.0.0.1": {
+            "name": "print",
+            "password": "46a453945433ce452b30565cba88adb6"
+        }
     },
-    "192.168.88.204": {
-        "name": "kkoo",
-        "password": "46a453945433ce452b30565cba88adb6"
+    {
+        "192.168.88.204": {
+            "name": "shush1k",
+            "password": "a3d296261dbda886e8685e4bad338bf4"
+        }
     }
-}
-}
+]
