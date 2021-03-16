@@ -123,11 +123,14 @@ class Server():
         """
         self.authorization(address, conn)
         while True:
-            # TODO Проблема команды exit (отключение от сервера)
-            # Когда клиент вводит данную команду, ему отправляется пакет RST
-            # После этого сервер не может считывать данные
-            # Connection reset by peer, а затем Broken pipe error
-            data = conn.recv(1024)
+            try:
+                data = conn.recv(1024)
+            except ConnectionResetError:
+                conn.close()
+                self.clients.remove(conn)
+                logging.info(f"Отключение клиента {address}")
+                break
+
             if data:
                 status, data, username = pickle.loads(data)
                 logging.info(f"Прием данных от клиента '{username}_{address[1]}': {data}")

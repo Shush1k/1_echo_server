@@ -12,9 +12,6 @@ PORT_DEFAULT = 9090
 logging.basicConfig(filename='log/client.log',
                     format="%(asctime)s [%(levelname)s] %(funcName)s: %(message)s", level=logging.INFO)
 
-# TODO Client
-# 
-# 
 class Client:
     """
     Клиент
